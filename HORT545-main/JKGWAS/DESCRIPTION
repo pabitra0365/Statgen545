@@ -1,0 +1,11 @@
+Package: JKGWAS
+Type: Package
+Title: Contains functions used for HORT545 class assignments.
+Version: 0.1.0
+Author: Lindsey Kornowske - with code from Zhiwu Zhang
+Maintainer: Lindsey Kornowske <lindsey.kornowske@wsu.edu>
+Description: Package contains functions pertaining to tasks necessary for the imputation and analysis of genomic data.
+License: MIT
+Encoding: UTF-8
+LazyData: false
+RoxygenNote: 7.1.1

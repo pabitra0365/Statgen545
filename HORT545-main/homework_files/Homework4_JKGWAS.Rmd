@@ -1,0 +1,383 @@
+---
+title: "Homework4_JKGWAS"
+author: "Pabitra Joshi and Lindsey Kornowske"
+date: "`r format(Sys.time(), '%d %B %Y')`"
+output:
+  pdf_document:
+    keep_tex: true
+    toc: yes
+    toc_depth: '6'
+  word_document:
+    toc: yes
+    toc_depth: '6'
+---
+
+\begin{figure*}[htbp]
+\begin{center}
+\includegraphics[width = 0.3\textwidth]{JKGWAS_logo.png}
+  \caption{JKGWAS Package Logo}
+  \label{fig:logo}
+\end{center}
+\end{figure*}
+
+# Data and Functions
+
+The GAPIT demo datasets were used for this assignment. They are available from "http://www.zzlab.net/GAPIT/index.html" All credit for these data belong to the Zhiwu Zhang Laboratory.
+
+```{r}
+library(compiler); #need for R version 4.0.4
+source("http://www.zzlab.net/StaGen/2021/R/G2P.R");
+source("http://www.zzlab.net/StaGen/2021/R/GWASbyCor.R");
+source("./../functions/HW4_JKGWAS_functions.R");
+
+# Genotype Data
+X = read.csv(file = "./../datasets/mdp_numeric.txt", header = TRUE, sep ="");
+# Phenotype Data
+y = read.csv(file = "./../datasets/CROPS545_Phenotype.txt", header = TRUE, sep = "");
+# Covariates Data
+CV = read.csv(file = "./../datasets/CROPS545_Covariates.txt", header = TRUE, sep = "");
+# SNP information data
+SNP = read.csv(file = "./../datasets/mdp_SNP_information.txt", header = TRUE, sep = "");
+
+```
+
+# Question 1 and 2
+\textbf{(1)	The package should contain at least three input: y, X , and C that are R objects of numeric data frame. Their dimensions are n by 1, n by m, and n by t corresponding to phenotype, genotype and covariate data, where n is number of individuals, m is number of markers, and t is number of covariates. The function should return probability values with dimension of 1 by m for the association tests between phenotype and markers. Markers are tested one at a time with covariates in C included as covariates (15 points).
+(2)	The package should perform PCA and incorporate PCs as cofactors for GWAS.  Your package should also automatically exclude the PCs that are in linear dependent to the covariates provided by users. (25 points).}
+
+```{r}
+#library(devtools)
+#install_github("lindseymaek/HORT545/JKGWAS")
+library(JKGWAS); #JKGWAS package
+```
+
+
+## JKGWAS Summary
+
+The JKGWAS Package contains four functions that are summarized briefly as follows, more information is located in the JKGWAS Package documentation: \par
+\textbullet{JKPCA takes genotype (X) data and covariate data (CV), computes the PCA on X, then automatically removes PCs that are linearly dependent to the CVs by method of comparing matrix rank. PCs are removed from the matrix in succesion and those that do not change the rank by removal are determined to be linearly independent because they do not provide additional information.} \par
+\textbullet{JKGLM takes phenotype (y), genotype (X), covariate (CV), and principal component (PC) inputs (ideally provided from JKPCA) and returns p-values calculated for the association tests between the phenotype and SNPs} \par
+\textbullet{JKQQ takes the pvalues from JKGLM and visualizes them by QQ plot. Expected p-values of length m are simulated from the continuous distribution.}\par
+\textbullet{JKManhattan visualizes the pvalues from JKGLM by Manhattan plot. User input QTNs can also be visualized. The significance threshold can be set, or it will default to Bonferoni correction for alpha = 0.05}\par
+
+
+
+# Question 3
+
+\textbf{(3)	Develop a user manual and tutorials. Name your package and create a logo. (20 points).}
+
+The JKGWAS package is named for Pabitra Joshi and Lindsey Kornowske, the label is displayed in Figure \ref{fig:logo}.
+
+The JKGWAS package documentation is provided in a separate file, "JKGWAS_0.1.0_PackageDocumentation.pdf" and further information about its use are provided in the user tutorial, "JKGWAS_UserTutorial.pdf"
+
+# Question 4
+
+\textbf{(4)	Perform GWAS on the data provided or your own data which must contain cofactors (15 points).}
+
+First, GWAS was performed with the phenotype data provided. In the Manhattan plot below, we can see that 4 SNP were detected, but because we do not have information about the QTNs, we do not know whether these significant observations represent true positives or not. Next, we use a simulated phenotype to better assess the performance of the JKGWAS approach.
+
+## GWAS with provided phenotype data
+
+```{r}
+## Get Principal Components with JKPCA()
+PC = JKPCA(X, CV, npc = 10);
+
+## Perform GWAS by GLM with JKGLM()
+Pvals = JKGLM(X = X, y = y, CV, PC);
+```
+
+### QQ Plot
+
+```{r}
+## Visualize GWAS by QQ Plot with JKQQ()
+JKQQ(Pvals);
+```
+
+### Genome-wide Threshold
+
+With the Bonferroni correction, our threshold is as follows:
+
+```{r}
+sig.threshold = 0.05/length(Pvals);
+sig.threshold;
+```
+
+### List of Associated SNP
+
+Because the genomic data and SNP data are in the same order, we can index the significant p-values in the SNP data.
+
+```{r}
+SNP[Pvals<sig.threshold,];
+```
+
+### MAF of Associated SNP
+
+```{r}
+X.num = dplyr::select_if(X, is.numeric); 
+
+#save associated SNP genomic data to dataframe
+SNP.GD = X.num[,Pvals<sig.threshold];
+
+#calculate MAF and store in array
+MAF = apply(SNP.GD, 2, function(x)
+  {
+  allele.freq1 = (sum(x==0)*2 + sum(x==1))/(sum(!is.na(x))*2);
+  allele.freq2 = (sum(x==2)*2 + sum(x==1))/(sum(!is.na(x))*2);
+  
+  return(min(allele.freq1, allele.freq2));
+  })
+
+MAF;
+
+```
+
+The MAFs for the significant QTNs are shown above. In this case, the MAF is fairly low for 3/4 associated SNP, which tells us that these variants are comparably rare to the major alleles. 
+
+
+### Manhattan Plot
+
+```{r}
+## Visualize GWAS by Manhattan Plot with JKManhattan()
+JKManhattan(Pvals = Pvals, SNP = SNP,sigcutoff = NULL );
+```
+
+
+## GWAS with simulated phenotype
+
+```{r}
+set.seed(12);
+#simulate phenotype with heritability value 0.75
+G2P.sim = G2P(X= X.num,
+             h2= 0.75,
+             alpha=1,
+             NQTN=10,
+             distribution="norm");
+
+#save the phenotype to variable for the JKGLM() function
+G2P.y = as.data.frame(G2P.sim$y);
+
+G2P.qtn = G2P.sim$QTN.position; 
+
+#perform GWAS by GLM with JKGLM
+Pvals.sim = JKGLM(X = X, y = G2P.y, CV, PC);
+```
+
+### QQ Plot
+
+```{r}
+## Visualize GWAS by QQ Plot with JKQQ()
+JKQQ(Pvals.sim);
+```
+Unlike the provided data, the simulated data shows a more dramatic departure from the expected values. We can anticipate more associated SNPs but also more false positives.
+
+### List of Associated SNP
+
+```{r}
+SNP[Pvals.sim<sig.threshold,];
+```
+
+### MAF of Associated SNP
+
+```{r}
+
+#save associated SNP genomic data to dataframe
+SNP.GD = X.num[,Pvals.sim<sig.threshold];
+
+#calculate MAF and store in array
+MAF = apply(SNP.GD, 2, function(x)
+  {
+  allele.freq1 = (sum(x==0)*2 + sum(x==1))/(sum(!is.na(x))*2);
+  allele.freq2 = (sum(x==2)*2 + sum(x==1))/(sum(!is.na(x))*2);
+  
+  return(min(allele.freq1, allele.freq2));
+  })
+
+MAF;
+```
+In the case of the simulated data, the MAF is much closer to 0.5, for at least half of the associated SNPs. These alleles do not represent rare variants as compared with the provided phenotype data.
+
+### Manhattan Plot
+
+```{r}
+## Visualize GWAS by Manhattan Plot with JKManhattan()
+JKManhattan(Pvals = Pvals.sim, SNP = SNP, sigcutoff = NULL, QTN = G2P.qtn);
+
+```
+
+If we use a simulated phenotype instead of the provided phenotype data, 50% of our 10 QTN are detected correctly. meaning that there is a 50% false negative rate. With 5 QTN detected out of 7 associated SNPs total, that is a True Positive rate of 71.4%. 
+
+
+
+# Question 5
+
+\textbf{(5)	Demonstrate that your method is superior to the competing method (GWASbyCor) through simulation with at least 30 replicates (25 points).}
+
+See file HW4_JKGWAS_functions.R for the function source code.
+
+In order to compare GWASbyCor and GWASbyGLM, we created a function called compareGWASnTimes. The function arguments are: \par
+\textbullet{n, the number of times to run the simulation} \par
+\textbullet{X, the numeric genomic data} \par
+\textbullet{qtn, the number of qtns to be simulated} \par
+\textbullet{CV, the covariate matrix to be passed to the JKGLM function. The default value is NULL }\par
+\textbullet{PC, the principal component matrix to be passed to the JKGLM function. The default value is NULL }\par
+
+For each iteration, the G2P function simulates the phenotype for X with a heritability of 0.75. Then, the output phenotype is used to compute the GWAS by cor and the GWAS by GLM. The number of True Positives, as well as the True Positive Rate, which is calculated as the number of QTNs that is correctly identified out of all significant SNPs (p-value is smaller than 0.05/total pvalues, Bonferroni correction is automatic). These two dataframes are output as a list, where the first item is the count of true positive QTNs and the second item is the true positive rate.
+
+```{r warning = FALSE}
+# Run the simulation comparison 30 times
+set.seed(8345);
+test = compareGWASnTimes(n=30, X = X, qtn = 10, CV = CV, PC = PC);
+#test;
+```
+
+The output of the function compareGWASnTimes() is a list containing lists for the results for GWAS by COR and GWAS by GLM for 4 items; 1) the number of QTNs detected among the significant SNPs 2) the true positive rate 3) the number of non-QTN SNPs detectected among the significant SNPs and 4) the false positive rate.
+
+## True Positive Rate
+
+```{r}
+mean(test[[2]]$COR); #mean TPR for Cor is 0.44
+mean(test[[2]]$GLM); #mean TPR for GLM is 0.71
+
+mean(test[[4]]$COR); #mean FPR for Cor is 0.56
+mean(test[[4]]$GLM); #mean FPR for GLM is 0.29
+```
+
+By these calculations, we can see that the standard deviation of the true positive rate for each method is comparable. The True Positive Rate is marginally higher for the GWAS by GLM than the GWAS by Cor.
+
+## Statistical Inference
+
+H$_{o}$; the mean rates are equal \par
+H$_{1}$; the mean rates are not equal
+
+significance threshold: 0.05
+
+
+### True positive rate
+
+
+p = 1.777e-05
+
+Reject the null hypothesis; there is sufficient evidence to suggest that the mean true positive rates for GWAS by Cor and GWAS by JKGWAS are different. The mean TPR for JKGWAS was 0.71, almost double that for GWAS by Cor (0.44).
+
+```{r}
+t.test(x = test[[2]]$COR, y = test[[2]]$GLM)
+```
+
+### False positive rate
+
+p-value = 1.883e-05
+
+Reject the null hypothesis; there is sufficient evidence to suggest that the mean false positive rates for GWAS by Cor and GWAS by JKGWAS are different. The mean FPR for JKGWAS was 0.29, almost half that for GWAS by Cor (0.56).
+
+```{r}
+t.test(x = test[[4]]$COR, y = test[[4]]$GLM);
+```
+
+
+# Extra Credit
+
+\textbf{(6)	Demonstrate that your package is better than BLINK C version (http://zzlab.net/blink) on either statistical power or speed (25 points). }
+
+See file HW4_JKGWAS_functions.R for the function source code.
+
+We created two functions to test this data. simBLINKnTimes(), where the user can input the number of desired iterations, the genomic data, and the genetic map data, then get the true and false positive rates, as well as the times required for the GWAS by BLINK. simJKGWASnTimes() does the same thing, but for our JKGWAS function. 
+
+Three sets of GAPIT demo datasets from ZZlab were used. In each trial, both of the functions mentioned above were run 30 times. Then the run time, true positive rate, and false positive rate were compared by two-sided t-test for each method to evaluate the null hypothesis of equal means. Across all three datasets, the computing time varied within each method, but in each case, the time to complete JKGWAS was significantly faster than BLINK (alpha = 0.05). The average computing times for the datasets are reported in the chunks below.
+
+BLINK, however, appears to be worth the additional time cost, because it was found to have higher power, with a significantly higher True Positive Rate and a significantly lower False Negative Rate than JKGWAS in all trials. The average false and true positive rates are reported in the chunks below.
+
+```{r echo = T, results = 'hide', message = FALSE, warning = FALSE}
+## Loading BLINK packages and source code
+source("http://zzlab.net/GAPIT/gapit_functions.txt");
+source("http://zzlab.net/GAPIT/GAPIT.library.R")
+
+```
+
+## Dataset 1
+
+```{r message=FALSE, warning=FALSE, echo = T, results = 'hide'}
+#test1 - Dataset 1 is the same as is used throughout assignment
+set.seed(1);
+BLINK1 = simBLINKnTimes(30, X = X, SNP = SNP);
+set.seed(1);
+GLM1 = simJKGWASnTimes(30, X = X, SNP = SNP);
+```
+
+### Statistical Inference
+
+```{r message=FALSE, warning=FALSE}
+#compare time
+t.test(BLINK1$BLINK_Time, GLM1$GLM_Time); # pval <0.05 JKGLM is faster
+
+#compare TPR
+t.test(BLINK1$TPR, GLM1$TPR); # pval <0.05, Blink is higher
+
+#compare FPR
+t.test(BLINK1$FPR, GLM1$FPR); #pval <0.05, Blink is lower
+
+```
+
+## Dataset 2
+
+```{r message=FALSE, warning=FALSE}
+#test 2 - Dataset 2 is from zzlab - all files with "2"
+# Genotype Data
+X2 = read.csv(file = "./../datasets/mdp_numeric2.txt", header = TRUE, sep ="");
+# SNP information data
+SNP2 = read.csv(file = "./../datasets/mdp_SNP_information2.txt", header = TRUE, sep = "");
+```
+
+
+```{r message=FALSE, warning=FALSE, echo = T, results = 'hide'}
+set.seed(2);
+BLINK2 = simBLINKnTimes(30, X = X2, SNP = SNP2);
+set.seed(2);
+GLM2 = simJKGWASnTimes(30, X = X2, SNP = SNP2);
+```
+
+### Statistical Inference
+
+
+```{r message=FALSE, warning=FALSE}
+#compare time
+t.test(BLINK2$BLINK_Time, GLM2$GLM_Time); # pval <0.05 JKGLM is faster
+
+#compare TPR
+t.test(BLINK2$TPR, GLM2$TPR);# pval <0.05, Blink is higher
+
+#compare FPR
+t.test(BLINK2$FPR, GLM2$FPR); #pval <0.05, Blink is lower
+```
+
+## Dataset 3
+
+```{r message=FALSE, warning=FALSE}
+#test 3 - Dataset 3 is from zzlab - all files with "3"
+# Genotype Data
+X3 = read.csv(file = "./../datasets/mdp_numeric3.txt", header = TRUE, sep ="");
+# SNP information data
+SNP3 = read.csv(file = "./../datasets/mdp_SNP_information3.txt", header = TRUE, sep = "");
+
+```
+
+
+```{r message=FALSE, warning=FALSE, echo = T, results = 'hide'}
+set.seed(3);
+BLINK3 = simBLINKnTimes(30, X = X3, SNP = SNP3);
+set.seed(3);
+GLM3 = simJKGWASnTimes(30, X = X3, SNP = SNP3);
+```
+
+### Statistical Inference
+
+```{r message=FALSE, warning=FALSE}
+#compare time
+t.test(BLINK3$BLINK_Time, GLM3$GLM_Time); # pval <0.05 JKGLM is faster
+
+#compare TPR
+t.test(BLINK3$TPR, GLM3$TPR); # pval <0.05, Blink is higher
+
+#compare FPR
+t.test(BLINK3$FPR, GLM3$FPR); #pval <0.05, Blink is lower
+```
+
