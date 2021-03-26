@@ -200,7 +200,7 @@ JKManhattan(Pvals = Pvals.sim, SNP = SNP, sigcutoff = NULL, QTN = G2P.sim$QTN.po
 
 ### **Frequently asked questions**
 
-\textbf{1. Where can I get JKGWAS?} \par JKGWAS is currently available on github via Lindsey Kornowske's public repository found at https://github.com/lindseymaek/HORT545 \par
+\textbf{1. Where can I get JKGWAS?} \par JKGWAS is available on github via Lindsey Kornowske's public repository found at https://github.com/lindseymaek/HORT545 and Pabitra Joshi's public repository found at https://github.com/pabitra0365/Statgen545  \par
 
 \textbf{2. How do I download JKGWAS?}\par Please refer the “Getting started” section above where I show how to download and install JKGWAS using devtools. \par
 
